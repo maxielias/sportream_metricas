@@ -1,0 +1,6 @@
+streamlit
+pandas
+psycopg2-binary
+plotly
+pyarrow==12.0.0
+sqlalchemy
