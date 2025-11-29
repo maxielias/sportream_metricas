@@ -138,6 +138,14 @@ class PostgresDB:
 
 import os
 
+# Load .env for local development if present
+from pathlib import Path
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path('.') / '.env')
+except Exception:
+    pass
+
 
 def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2.extensions.connection:
     """Load Neon DB credentials and connect using explicit PG* keys.

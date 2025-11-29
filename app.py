@@ -7,6 +7,13 @@ import json
 
 from activity_details import fetch_activity_details_df, fetch_activity_details, ActivityDetails
 import os
+from pathlib import Path
+try:
+    # load .env in development if present (does nothing if python-dotenv is not installed)
+    from dotenv import load_dotenv
+    load_dotenv(Path('.') / '.env')
+except Exception:
+    pass
 
 
 st.set_page_config(page_title="Garmin Activity Metrics", layout="wide")

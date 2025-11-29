@@ -4,6 +4,12 @@ import pandas as pd
 
 from db_connection import get_postgresdb_from_neon_keys, PostgresDB
 import os
+from pathlib import Path
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path('.') / '.env')
+except Exception:
+    pass
 
 
 @dataclass
