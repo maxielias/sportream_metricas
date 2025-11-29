@@ -55,16 +55,18 @@ Esta app carga credenciales en este orden de preferencia: (1) `st.secrets` (cuan
 
 1) Usar variables de entorno (PowerShell, recomendado para pruebas locales)
 
-Abre PowerShell en la raíz del repo y ejecuta (reemplaza valores por los tuyos):
+
+Abre PowerShell en la raíz del repo y establece las variables de entorno con tus valores (ejemplo con placeholders):
 
 ```powershell
-$env:PGHOST = 'ep-royal-cloud-adruqcjl-pooler.c-2.us-east-1.aws.neon.tech'
-$env:PGDATABASE = 'neondb'
-$env:PGUSER = 'neondb_owner'
-$env:PGPASSWORD = 'TU_PASSWORD'
-$env:PGPORT = '5432'
-$env:PGSSLMODE = 'require'
-$env:TARGET_USER_ID = '7a4f4df0-da55-43d7-83a5-df419a7b421c'
+# Reemplaza los valores en mayúsculas por tus credenciales/valores reales
+$env:PGHOST = '<PGHOST>'
+$env:PGDATABASE = '<PGDATABASE>'
+$env:PGUSER = '<PGUSER>'
+$env:PGPASSWORD = '<PGPASSWORD>'
+$env:PGPORT = '<PGPORT>'
+$env:PGSSLMODE = '<PGSSLMODE>'
+$env:TARGET_USER_ID = '<TARGET_USER_ID>'
 
 # Ejecuta Streamlit en la misma sesión para que vea las vars
 streamlit run app.py
@@ -74,16 +76,17 @@ Estas variables se mantienen solo en la sesión actual de PowerShell y no se gua
 
 2) Usar `.streamlit/secrets.toml` (desarrollo local)
 
-Puedes crear localmente `.streamlit/secrets.toml` con este contenido (NO lo subas al repo):
+
+Puedes crear localmente `.streamlit/secrets.toml` con este contenido (NO lo subas al repo). Usa placeholders y reemplaza por tus valores:
 
 ```toml
-PGHOST = "ep-royal-cloud-adruqcjl-pooler.c-2.us-east-1.aws.neon.tech"
-PGDATABASE = "neondb"
-PGUSER = "neondb_owner"
-PGPASSWORD = "TU_PASSWORD"
-PGPORT = "5432"
-PGSSLMODE = "require"
-TARGET_USER_ID = "7a4f4df0-da55-43d7-83a5-df419a7b421c"
+PGHOST = "<PGHOST>"
+PGDATABASE = "<PGDATABASE>"
+PGUSER = "<PGUSER>"
+PGPASSWORD = "<PGPASSWORD>"
+PGPORT = "<PGPORT>"
+PGSSLMODE = "<PGSSLMODE>"
+TARGET_USER_ID = "<TARGET_USER_ID>"
 ```
 
 Agrega `.streamlit/secrets.toml` a `.gitignore` para evitar comitearlo.
