@@ -154,8 +154,13 @@ def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2
     `PGPASSWORD`, `PGSSLMODE`. A KeyError is raised if any required key
     is missing so the caller can fix their `neondb_keys.json`.
     """
-    # Prefer environment variables first (suitable for local or CI),
-    # then fall back to reading the local JSON file.
+    # Prefer a full connection URL if provided (CONNECTION_URL), then
+    # explicit PG* environment variables, then fall back to JSON file.
+    conn_url = os.getenv('CONNECTION_URL') or os.getenv('CONN_URL')
+    if conn_url:
+        # psycopg2 accepts a connection string URL directly
+        return psycopg2.connect(conn_url)
+
     if os.getenv("PGHOST"):
         keys = {
             'PGHOST': os.getenv('PGHOST'),
@@ -187,7 +192,22 @@ def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2
 def get_postgresdb_from_neon_keys(path: str = "neondb_keys.json") -> PostgresDB:
     """Return a configured `PostgresDB` instance built from Neon keys file."""
     # Prefer environment variables first; fall back to local file.
-    if os.getenv("PGHOST"):
+    # If a full connection URL is present, parse it and use it.
+    conn_url = os.getenv('CONNECTION_URL') or os.getenv('CONN_URL')
+    if conn_url:
+        # Parse URL to extract components
+        parsed = urllib.parse.urlparse(conn_url)
+        # parsed.path might start with '/dbname'
+        dbname = parsed.path.lstrip('/') if parsed.path else None
+        keys = {
+            'PGHOST': parsed.hostname,
+            'PGPORT': parsed.port,
+            'PGDATABASE': dbname,
+            'PGUSER': parsed.username,
+            'PGPASSWORD': parsed.password,
+            'PGSSLMODE': None,
+        }
+    elif os.getenv("PGHOST"):
         keys = {
             'PGHOST': os.getenv('PGHOST'),
             'PGPORT': os.getenv('PGPORT'),
