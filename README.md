@@ -1,8 +1,8 @@
 **Proyecto**: `sportream_metricas`
 
-**Resumen rápido**
+**Resumen rï¿½pido**
 - Entorno virtual recomendado: `./.venv` (Python 3.11).
-- Cómo ejecutar la app Streamlit localmente y notas sobre dependencias (pyarrow/numpy).
+- Cï¿½mo ejecutar la app Streamlit localmente y notas sobre dependencias (pyarrow/numpy).
 
 **Requisitos**
 - Python 3.11 instalado en el sistema.
@@ -17,7 +17,7 @@
 .\.venv\Scripts\activate.bat
 ```
 
-**Instalar dependencias (si no están instaladas)**
+**Instalar dependencias (si no estï¿½n instaladas)**
 ```
 .\.venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
@@ -30,22 +30,69 @@
 
 **Notas importantes**
 - Para evitar compilaciones locales de `pyarrow` en Windows se usa `Python 3.11` y una rueda binaria precompilada; por eso el proyecto proporciona y recomienda `./.venv`.
-- Si ves errores relacionados con `numpy` y módulos precompilados, asegúrate de usar la versión incluida en el venv (`numpy==1.25.2` con `pyarrow==12.0.0` en el venv `./.venv`).
-- Si prefieres usar otro entorno, es posible que `pyarrow` necesite compilación local y herramientas adicionales (CMake/Build Tools).
+- Si ves errores relacionados con `numpy` y mï¿½dulos precompilados, asegï¿½rate de usar la versiï¿½n incluida en el venv (`numpy==1.25.2` con `pyarrow==12.0.0` en el venv `./.venv`).
+- Si prefieres usar otro entorno, es posible que `pyarrow` necesite compilaciï¿½n local y herramientas adicionales (CMake/Build Tools).
 
-**Configurar VS Code para usar el intérprete del venv**
-- Archivo de configuración (opcional): crea `.vscode/settings.json` con esta entrada:
+**Configurar VS Code para usar el intï¿½rprete del venv**
+- Archivo de configuraciï¿½n (opcional): crea `.vscode/settings.json` con esta entrada:
 ```
 {
   "python.defaultInterpreterPath": "${workspaceFolder}\\\.venv\\Scripts\\python.exe"
 }
 ```
 
-Si quieres que actualice `.vscode/settings.json` por ti, dímelo y lo hago.
+Si quieres que actualice `.vscode/settings.json` por ti, dï¿½melo y lo hago.
 
-**Comprobación rápida**
-- Después de activar el venv, prueba:
+**Comprobaciï¿½n rï¿½pida**
+- Despuï¿½s de activar el venv, prueba:
 ```
 .\.venv\Scripts\python.exe -c "import pyarrow,pandas,streamlit,plotly; print('OK', pyarrow.__version__)"
 ```
+
+**Configurar secrets / variables de entorno (desarrollo local y Streamlit Cloud)**
+
+Esta app carga credenciales en este orden de preferencia: (1) `st.secrets` (cuando se ejecuta en Streamlit Cloud o local con `.streamlit/secrets.toml`), (2) variables de entorno del sistema, y como Ãºltimo recurso (solo para desarrollo) `neondb_keys.json`.
+
+1) Usar variables de entorno (PowerShell, recomendado para pruebas locales)
+
+Abre PowerShell en la raÃ­z del repo y ejecuta (reemplaza valores por los tuyos):
+
+```powershell
+$env:PGHOST = 'ep-royal-cloud-adruqcjl-pooler.c-2.us-east-1.aws.neon.tech'
+$env:PGDATABASE = 'neondb'
+$env:PGUSER = 'neondb_owner'
+$env:PGPASSWORD = 'TU_PASSWORD'
+$env:PGPORT = '5432'
+$env:PGSSLMODE = 'require'
+$env:TARGET_USER_ID = '7a4f4df0-da55-43d7-83a5-df419a7b421c'
+
+# Ejecuta Streamlit en la misma sesiÃ³n para que vea las vars
+streamlit run app.py
+```
+
+Estas variables se mantienen solo en la sesiÃ³n actual de PowerShell y no se guardan en disco.
+
+2) Usar `.streamlit/secrets.toml` (desarrollo local)
+
+Puedes crear localmente `.streamlit/secrets.toml` con este contenido (NO lo subas al repo):
+
+```toml
+PGHOST = "ep-royal-cloud-adruqcjl-pooler.c-2.us-east-1.aws.neon.tech"
+PGDATABASE = "neondb"
+PGUSER = "neondb_owner"
+PGPASSWORD = "TU_PASSWORD"
+PGPORT = "5432"
+PGSSLMODE = "require"
+TARGET_USER_ID = "7a4f4df0-da55-43d7-83a5-df419a7b421c"
+```
+
+Agrega `.streamlit/secrets.toml` a `.gitignore` para evitar comitearlo.
+
+3) Deploy en Streamlit Cloud
+
+- En la UI de Streamlit Cloud ve a Settings â†’ Secrets y pega el mismo bloque TOML (con tus valores). Los secrets quedan cifrados y disponibles en `st.secrets`.
+- Espera ~1 minuto para la propagaciÃ³n o reinicia la app si necesitas forzar la recarga.
+
+Seguridad: NUNCA subas archivos con credenciales al repo. Si en algÃºn momento expusiste una credencial, rÃ³tala (cÃ¡mbiala) inmediatamente.
+
 
