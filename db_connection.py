@@ -136,6 +136,9 @@ class PostgresDB:
 # avoids ambiguous config shapes.
 
 
+import os
+
+
 def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2.extensions.connection:
     """Load Neon DB credentials and connect using explicit PG* keys.
 
@@ -143,17 +146,30 @@ def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2
     `PGPASSWORD`, `PGSSLMODE`. A KeyError is raised if any required key
     is missing so the caller can fix their `neondb_keys.json`.
     """
-    with open(path, "r", encoding="utf-8") as f:
-        keys = json.load(f)
+    # Prefer environment variables first (suitable for local or CI),
+    # then fall back to reading the local JSON file.
+    if os.getenv("PGHOST"):
+        keys = {
+            'PGHOST': os.getenv('PGHOST'),
+            'PGDATABASE': os.getenv('PGDATABASE'),
+            'PGUSER': os.getenv('PGUSER'),
+            'PGPASSWORD': os.getenv('PGPASSWORD'),
+            'PGPORT': os.getenv('PGPORT'),
+            'PGSSLMODE': os.getenv('PGSSLMODE'),
+        }
+    else:
+        # last resort: try file directly to provide clearer error
+        with open(path, "r", encoding="utf-8") as f:
+            keys = json.load(f)
 
     # Use the exact keys as requested
     try:
         conn = psycopg2.connect(
-            host=keys['PGHOST'],
-            database=keys['PGDATABASE'],
-            user=keys['PGUSER'],
-            password=keys['PGPASSWORD'],
-            sslmode=keys['PGSSLMODE']
+            host=keys.get('PGHOST') or keys.get('host'),
+            database=keys.get('PGDATABASE') or keys.get('database') or keys.get('dbname'),
+            user=keys.get('PGUSER') or keys.get('user'),
+            password=keys.get('PGPASSWORD') or keys.get('password'),
+            sslmode=keys.get('PGSSLMODE') or keys.get('sslmode')
         )
     except KeyError as e:
         raise KeyError(f"Missing required key in {path}: {e}") from e
@@ -162,8 +178,19 @@ def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2
 
 def get_postgresdb_from_neon_keys(path: str = "neondb_keys.json") -> PostgresDB:
     """Return a configured `PostgresDB` instance built from Neon keys file."""
-    with open(path, "r", encoding="utf-8") as f:
-        keys = json.load(f)
+    # Prefer environment variables first; fall back to local file.
+    if os.getenv("PGHOST"):
+        keys = {
+            'PGHOST': os.getenv('PGHOST'),
+            'PGPORT': os.getenv('PGPORT'),
+            'PGDATABASE': os.getenv('PGDATABASE'),
+            'PGUSER': os.getenv('PGUSER'),
+            'PGPASSWORD': os.getenv('PGPASSWORD'),
+            'PGSSLMODE': os.getenv('PGSSLMODE'),
+        }
+    else:
+        with open(path, "r", encoding="utf-8") as f:
+            keys = json.load(f)
     # Prefer explicit PG* keys. Fall back to tolerant keys if needed.
     host = keys.get("PGHOST") or keys.get("host")
     port = int(keys.get("PGPORT") or keys.get("port") or 5432)

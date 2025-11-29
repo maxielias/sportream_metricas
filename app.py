@@ -6,6 +6,7 @@ from plotly.subplots import make_subplots
 import json
 
 from activity_details import fetch_activity_details_df, fetch_activity_details, ActivityDetails
+import os
 
 
 st.set_page_config(page_title="Garmin Activity Metrics", layout="wide")
@@ -14,14 +15,14 @@ st.title("Métricas de actividades — Activity Details")
 
 
 @st.cache_data(ttl=300)
-def load_activity_list(limit: int = 200):
-    # Returns DataFrame of available activity-details
-    return fetch_activity_details_df(limit=limit)
+def load_activity_list(limit: int = 200, target_user_id: str = None):
+    # Returns DataFrame of available activity-details (optionally filtered by target_user_id)
+    return fetch_activity_details_df(limit=limit, target_user_id=target_user_id)
 
 
 @st.cache_data(ttl=300)
-def load_activity_objects(limit: int = 200):
-    return fetch_activity_details(limit=limit)
+def load_activity_objects(limit: int = 200, target_user_id: str = None):
+    return fetch_activity_details(limit=limit, target_user_id=target_user_id)
 
 
 def activity_to_label(rec: pd.Series) -> str:
@@ -39,11 +40,14 @@ def main():
         load_activity_list.clear()
         load_activity_objects.clear()
 
-    df = load_activity_list(limit=limit)
-    items = load_activity_objects(limit=limit)
+    # Load target_user_id from environment variables (if set)
+    target_user_id = os.getenv('TARGET_USER_ID') or os.getenv('target_user_id') or os.getenv('targetUserId')
+
+    df = load_activity_list(limit=limit, target_user_id=target_user_id)
+    items = load_activity_objects(limit=limit, target_user_id=target_user_id)
 
     if df is None or df.empty:
-        st.warning("No se encontraron actividades. Revisa `neondb_keys.json` y la tabla `webhooks`.")
+        st.warning("No se encontraron actividades. Revisa tus secrets (Streamlit secrets / variables de entorno) y la tabla `webhooks`.")
         return
 
     # Selection

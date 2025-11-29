@@ -33,7 +33,13 @@ __pycache__/
 
 # Secrets
 neondb_keys.json
+neondb_keys.json.example
 
 # Optional local env files
 .env
 
+# examples files
+examples/
+
+connect_example.py
+secrets_loader.py

@@ -3,6 +3,7 @@ from typing import Any, List, Optional
 import pandas as pd
 
 from db_connection import get_postgresdb_from_neon_keys, PostgresDB
+import os
 
 
 @dataclass
@@ -69,6 +70,7 @@ def fetch_activity_details(
     path: str = "neondb_keys.json",
     limit: int = 100,
     since: Optional[str] = None,
+    target_user_id: Optional[str] = None,
 ) -> List[ActivityDetails]:
     """Query `webhooks` for rows with `type = 'activity-details'` and
     return a list of `ActivityDetails`.
@@ -84,12 +86,23 @@ def fetch_activity_details(
         db = get_postgresdb_from_neon_keys(path)
         created_local = True
 
+    # If not provided explicitly, attempt to load target_user_id from environment
+    if target_user_id is None:
+        target_user_id = os.getenv('TARGET_USER_ID') or os.getenv('target_user_id') or os.getenv('targetUserId')
+
     # select explicit columns to match your table schema: id, type, data, created_at
     q = "SELECT * FROM webhooks WHERE type = 'activity-details'"
     params = []
     if since:
         q += " AND created_at >= %s"
         params.append(since)
+    # If a target_user_id is provided, attempt to filter by common JSON key names
+    # in the `data` JSON column. This uses PostgreSQL ->> operator to extract
+    # text values from JSON/JSONB. If `data` is plain text, the operator may fail
+    # depending on DB schema; in that case the filter will simply not match.
+    if target_user_id:
+        q += " AND ( (data->>'targetUserId') = %s OR (data->>'target_user_id') = %s OR (data->>'userId') = %s )"
+        params.extend([target_user_id, target_user_id, target_user_id])
     q += " ORDER BY created_at DESC LIMIT %s"
     params.append(limit)
 
@@ -108,7 +121,7 @@ def fetch_activity_details(
 
 
 def fetch_activity_details_df(
-    db: Optional[PostgresDB] = None, path: str = "neondb_keys.json", limit: int = 100, since: Optional[str] = None
+    db: Optional[PostgresDB] = None, path: str = "neondb_keys.json", limit: int = 100, since: Optional[str] = None, target_user_id: Optional[str] = None
 ) -> pd.DataFrame:
     """Return a pandas DataFrame with the queried activity-details rows."""
     created_local = False
@@ -116,11 +129,18 @@ def fetch_activity_details_df(
         db = get_postgresdb_from_neon_keys(path)
         created_local = True
 
+    # Attempt to obtain target_user_id from environment if not provided
+    if target_user_id is None:
+        target_user_id = os.getenv('TARGET_USER_ID') or os.getenv('target_user_id') or os.getenv('targetUserId')
+
     q = "SELECT id, type, data, created_at FROM webhooks WHERE type = 'activity-details'"
     params = []
     if since:
         q += " AND created_at >= %s"
         params.append(since)
+    if target_user_id:
+        q += " AND ( (data->>'targetUserId') = %s OR (data->>'target_user_id') = %s OR (data->>'userId') = %s )"
+        params.extend([target_user_id, target_user_id, target_user_id])
     q += " ORDER BY created_at DESC LIMIT %s"
     params.append(limit)
 
