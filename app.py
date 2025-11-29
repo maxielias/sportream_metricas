@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
+import pydeck as pdk
 
 from activity_details import fetch_activity_details_df, fetch_activity_details, ActivityDetails
 import os
@@ -26,9 +27,28 @@ def load_activity_objects(limit: int = 200, target_user_id: str = None):
 
 
 def activity_to_label(rec: pd.Series) -> str:
-    cid = rec.get("id")
+    # Prefer to show activityName inside activityDetails plus created date
+    data_val = rec.get("data")
+    if isinstance(data_val, str):
+        try:
+            data_val = json.loads(data_val)
+        except Exception:
+            data_val = None
+
+    activity_name = None
+    if isinstance(data_val, dict):
+        # try nested activityDetails list first
+        ad_list = data_val.get("activityDetails")
+        if isinstance(ad_list, list) and len(ad_list) > 0:
+            first = ad_list[0]
+            activity_name = first.get("activityName") or first.get("name")
+        # fallback to top-level key
+        if not activity_name:
+            activity_name = data_val.get("activityName") or data_val.get("activity_name") or data_val.get("name")
+
     created = rec.get("created_at")
-    return f"{cid} — {created}"
+    label_name = activity_name or str(rec.get("id") or "")
+    return f"{created} — {label_name}"
 
 
 def main():
@@ -183,9 +203,27 @@ def main():
 
             # map if coordinates available
             if "latitudeInDegree" in samples.columns and "longitudeInDegree" in samples.columns:
-                coords = samples.dropna(subset=["latitudeInDegree", "longitudeInDegree"])
+                coords = samples.dropna(subset=["latitudeInDegree", "longitudeInDegree"]) 
                 if not coords.empty:
-                    st.map(coords.rename(columns={"latitudeInDegree": "lat", "longitudeInDegree": "lon"})[["lat", "lon"]])
+                    # Use pydeck ScatterplotLayer with small points to avoid hiding the map
+                    coords = coords.rename(columns={"latitudeInDegree": "lat", "longitudeInDegree": "lon"})
+                    mid_lat = float(coords["lat"].mean())
+                    mid_lon = float(coords["lon"].mean())
+                    view_state = pdk.ViewState(latitude=mid_lat, longitude=mid_lon, zoom=12, pitch=0)
+
+                    layer = pdk.Layer(
+                        "ScatterplotLayer",
+                        data=coords,
+                        get_position='[lon, lat]',
+                        get_fill_color=[250, 100, 100],
+                        get_radius=1,
+                        radius_min_pixels=2,
+                        radius_max_pixels=6,
+                        pickable=True,
+                    )
+
+                    deck = pdk.Deck(layers=[layer], initial_view_state=view_state)
+                    st.pydeck_chart(deck)
 
 
 if __name__ == "__main__":
