@@ -28,7 +28,34 @@ def load_activity_objects(limit: int = 200, target_user_id: str = None):
 def activity_to_label(rec: pd.Series) -> str:
     cid = rec.get("id")
     created = rec.get("created_at")
-    return f"{cid} — {created}"
+    # Try to extract a human-friendly activity name from the payload
+    data_val = rec.get("data")
+    activity_name = None
+    if isinstance(data_val, str):
+        try:
+            data_val = json.loads(data_val)
+        except Exception:
+            pass
+
+    if isinstance(data_val, dict):
+        # common patterns: activityDetails -> [ { activityName: ... } ]
+        try:
+            if 'activityDetails' in data_val and isinstance(data_val['activityDetails'], list) and data_val['activityDetails']:
+                first = data_val['activityDetails'][0]
+                if isinstance(first, dict):
+                    activity_name = first.get('activityName') or first.get('activity_name') or first.get('name')
+        except Exception:
+            activity_name = None
+
+        if not activity_name:
+            activity_name = data_val.get('activityName') or data_val.get('activity_name') or data_val.get('name')
+
+    # Build label: prefer "created_at — activityName"; fallback to id if name missing
+    created_str = created if created is not None else ''
+    if activity_name:
+        return f"{created_str} — {activity_name}"
+    # fallback: show id and created
+    return f"{cid} — {created_str}"
 
 
 def main():
@@ -52,9 +79,27 @@ def main():
 
     # Selection
     st.sidebar.markdown(f"**Actividades cargadas:** {len(df)}")
-    options = [activity_to_label(df.iloc[i]) for i in range(len(df))]
-    sel = st.sidebar.selectbox("Seleccionar actividad", options=options)
-    sel_idx = options.index(sel)
+    # Inject small CSS to make the sidebar selectbox font smaller and allow wrapping
+    st.sidebar.markdown(
+        """
+        <style>
+        /* Reduce font size for sidebar selectbox options and labels */
+        section [data-testid="stSidebar"] .stSelectbox, section [data-testid="stSidebar"] select, section [data-testid="stSidebar"] div[role="listbox"] {
+            font-size: 12px !important;
+            line-height: 1.15 !important;
+        }
+        /* Try to allow options to wrap when long */
+        div[role="option"] { white-space: normal !important; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    labels = [activity_to_label(df.iloc[i]) for i in range(len(df))]
+    # Use selectbox showing "fecha — activityName" (or fallback). We keep the labels list and
+    # map selection back to index so underlying logic is unchanged.
+    sel = st.sidebar.selectbox("Seleccionar actividad", options=labels)
+    sel_idx = labels.index(sel)
 
     # show selected summary
     rec = df.iloc[sel_idx]
@@ -121,6 +166,29 @@ def main():
             st.info("No se encontraron samples para esta actividad.")
         else:
             st.dataframe(samples.head(200))
+
+            # Basic quality checks and warnings for potentially incomplete / inconsistent samples
+            n_samples = len(samples)
+            if n_samples < 20:
+                st.warning(f"Actividad con pocos samples ({n_samples}). Es posible que los datos estén incompletos.")
+
+            # Check monotonicity of timerDuration (if present)
+            if 'timerDuration' in samples.columns:
+                try:
+                    td = samples['timerDuration']
+                    # if not monotonic increasing, warn (could indicate duplicates or bad ordering)
+                    if not td.is_monotonic_increasing:
+                        st.warning('La columna `timerDuration` no es monótona creciente — los samples pueden estar desordenados o duplicados.')
+                except Exception:
+                    pass
+
+            # Check for coordinate completeness
+            if "latitudeInDegree" in samples.columns and "longitudeInDegree" in samples.columns:
+                coord_count = samples.dropna(subset=["latitudeInDegree", "longitudeInDegree"]).shape[0]
+                if coord_count == 0:
+                    st.warning('No hay coordenadas en los samples de esta actividad.')
+                elif coord_count < max(5, int(0.2 * n_samples)):
+                    st.warning(f'Muy pocas coordenadas válidas ({coord_count}/{n_samples}) — el trazado puede ser incompleto.')
 
             # Modern minimal athletic plots for selected metric columns
             columns_to_plot = ['heartRate', 'totalDistanceInMeters', 'speedMetersPerSecond', 'elevationInMeters']
