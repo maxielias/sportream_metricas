@@ -1,0 +1,39 @@
+# Virtual environments
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# Secrets
+neondb_keys.json
+
+# Optional local env files
+.env
+# Virtual environments
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints
+
+# VSCode
+.vscode/
+
+# Secrets
+neondb_keys.json
+
+# Optional local env files
+.env
+
