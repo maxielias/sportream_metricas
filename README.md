@@ -1,65 +1,60 @@
 **Proyecto**: `sportream_metricas`
+Proyecto: sportream_metricas
 
-**Resumen r�pido**
-- Entorno virtual recomendado: `./.venv` (Python 3.11).
-- C�mo ejecutar la app Streamlit localmente y notas sobre dependencias (pyarrow/numpy).
+Resumen rápido
 
-**Requisitos**
+Entorno virtual recomendado: `./.venv` (Python 3.11).
+Cómo ejecutar la app Streamlit localmente y notas sobre dependencias (pyarrow/numpy).
+
+Requisitos
+
 - Python 3.11 instalado en el sistema.
 
-**Activar el entorno virtual (PowerShell)**
-```
+Activar el entorno virtual (PowerShell)
+
+```powershell
 .\.venv\Scripts\Activate.ps1
 ```
 
-**Activar el entorno virtual (CMD)**
-```
+Activar el entorno virtual (CMD)
+
+```cmd
 .\.venv\Scripts\activate.bat
 ```
 
-**Instalar dependencias (si no est�n instaladas)**
-```
+Instalar dependencias (si no están instaladas)
+
+```powershell
 .\.venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-**Ejecutar la app (Streamlit)**
-```
+Ejecutar la app (Streamlit)
+
+```powershell
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-**Notas importantes**
-- Para evitar compilaciones locales de `pyarrow` en Windows se usa `Python 3.11` y una rueda binaria precompilada; por eso el proyecto proporciona y recomienda `./.venv`.
-- Si ves errores relacionados con `numpy` y m�dulos precompilados, aseg�rate de usar la versi�n incluida en el venv (`numpy==1.25.2` con `pyarrow==12.0.0` en el venv `./.venv`).
-- Si prefieres usar otro entorno, es posible que `pyarrow` necesite compilaci�n local y herramientas adicionales (CMake/Build Tools).
+La app usa, en orden de preferencia: variables de entorno y, para desarrollo, un archivo `.env`.
 
-**Configurar VS Code para usar el int�rprete del venv**
-- Archivo de configuraci�n (opcional): crea `.vscode/settings.json` con esta entrada:
-```
-{
-  "python.defaultInterpreterPath": "${workspaceFolder}\\\.venv\\Scripts\\python.exe"
-}
-```
+Ejemplo mínimo de `.env` (archivo en la raíz, NO comitear):
 
-Si quieres que actualice `.vscode/settings.json` por ti, d�melo y lo hago.
-
-**Comprobaci�n r�pida**
-- Despu�s de activar el venv, prueba:
-```
-.\.venv\Scripts\python.exe -c "import pyarrow,pandas,streamlit,plotly; print('OK', pyarrow.__version__)"
+```env
+CONNECTION_URL=postgresql://user:password@host:port/dbname
+# o, si usas variables sueltas:
+PGHOST=...
+PGDATABASE=...
+PGUSER=...
+PGPASSWORD=...
+PGPORT=5432
+TARGET_USER_ID=<uuid-optional>
 ```
 
-**Configurar secrets / variables de entorno (desarrollo local y Streamlit Cloud)**
+Notas
 
-Esta app carga credenciales en este orden de preferencia: (1) `st.secrets` (cuando se ejecuta en Streamlit Cloud o local con `.streamlit/secrets.toml`), (2) variables de entorno del sistema, y como último recurso (solo para desarrollo) `neondb_keys.json`.
+- En Windows, `pyarrow` puede necesitar ruedas binarias; usar Python 3.11 suele evitar compilaciones desde fuente.
+- No subas `.env` ni archivos con credenciales al repositorio.
 
-1) Usar variables de entorno (PowerShell, recomendado para pruebas locales)
-
-
-Abre PowerShell en la raíz del repo y establece las variables de entorno con tus valores (ejemplo con placeholders):
-
-```powershell
-# Reemplaza los valores en mayúsculas por tus credenciales/valores reales
 $env:PGHOST = '<PGHOST>'
 $env:PGDATABASE = '<PGDATABASE>'
 $env:PGUSER = '<PGUSER>'
