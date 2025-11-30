@@ -116,6 +116,22 @@ def fetch_activity_details(
         df = db.to_dataframe(q, params=tuple(params))
 
     # convert DataFrame rows to ActivityDetails
+    # If filtered df is empty and we have a target_user_id, attempt fallback
+    if df.empty and target_user_id:
+        try:
+            print(f"No rows for target_user_id={target_user_id!r}; falling back to unfiltered fetch")
+        except Exception:
+            pass
+        q2 = "SELECT * FROM webhooks WHERE type = 'activity-details'"
+        params2 = []
+        if since:
+            q2 += " AND created_at >= %s"
+            params2.append(since)
+        q2 += " ORDER BY created_at DESC LIMIT %s"
+        params2.append(limit)
+        with db:
+            df = db.to_dataframe(q2, params=tuple(params2))
+
     results: List[ActivityDetails] = []
     for _, row in df.iterrows():
         record = {col: row[col] for col in df.columns}
@@ -152,6 +168,31 @@ def fetch_activity_details_df(
 
     with db:
         df = db.to_dataframe(q, params=tuple(params))
+
+    # If we applied a target_user_id filter and got no rows, fall back to
+    # fetching without the target filter: this helps the UI show data when
+    # the configured TARGET_USER_ID does not match any rows in the table.
+    if df.empty and target_user_id:
+        try:
+            print(f"No rows for target_user_id={target_user_id!r}; falling back to unfiltered fetch")
+        except Exception:
+            pass
+        # re-run the query without the target filter
+        q2 = "SELECT id, type, data, created_at FROM webhooks WHERE type = 'activity-details'"
+        params2 = []
+        if since:
+            q2 += " AND created_at >= %s"
+            params2.append(since)
+        q2 += " ORDER BY created_at DESC LIMIT %s"
+        params2.append(limit)
+        with db:
+            df = db.to_dataframe(q2, params=tuple(params2))
+        # mark that we performed a fallback so callers (UI) can notify users
+        try:
+            df.attrs['fallback_to_unfiltered'] = True
+        except Exception:
+            # older pandas or unusual DF impl: ignore
+            pass
 
     if created_local:
         db.close()
