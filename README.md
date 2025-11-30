@@ -86,16 +86,63 @@ PGUSER = "<PGUSER>"
 PGPASSWORD = "<PGPASSWORD>"
 PGPORT = "<PGPORT>"
 PGSSLMODE = "<PGSSLMODE>"
-TARGET_USER_ID = "<TARGET_USER_ID>"
+# sportream_metricas
+
+Breve guía para desarrollo local.
+
+Requisitos
+- Python 3.11
+
+1) Crear y activar entorno virtual (PowerShell)
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 ```
 
-Agrega `.streamlit/secrets.toml` a `.gitignore` para evitar comitearlo.
+2) Instalar dependencias
 
-3) Deploy en Streamlit Cloud
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
-- En la UI de Streamlit Cloud ve a Settings → Secrets y pega el mismo bloque TOML (con tus valores). Los secrets quedan cifrados y disponibles en `st.secrets`.
-- Espera ~1 minuto para la propagación o reinicia la app si necesitas forzar la recarga.
+3) Configurar credenciales (local)
 
-Seguridad: NUNCA subas archivos con credenciales al repo. Si en algún momento expusiste una credencial, rótala (cámbiala) inmediatamente.
+La app usa, en orden de preferencia: variables de entorno y, para desarrollo, un archivo `.env`.
+
+Ejemplo mínimo de `.env` (archivo en la raíz, NO comitear):
+
+```
+CONNECTION_URL=postgresql://user:password@host:port/dbname
+# o, si usas variables sueltas:
+PGHOST=...
+PGDATABASE=...
+PGUSER=...
+PGPASSWORD=...
+PGPORT=5432
+TARGET_USER_ID=<uuid-optional>
+```
+
+4) Ejecutar la app
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+5) Comprobación rápida
+
+```powershell
+.\.venv\Scripts\python.exe -c "import pyarrow,pandas,streamlit; print('OK')"
+```
+
+Notas
+- En Windows, `pyarrow` puede requerir ruedas binarias compatibles; usar Python 3.11 suele evitar compilaciones.
+- No subas `.env` ni archivos con credenciales al repositorio.
+
+Tests/diagnóstico
+- Hay scripts de ayuda en `scripts/` (p. ej. `scripts/test_activity_details.py`) para comprobar conexión y resultados.
+
+Si quieres que deje alguna configuración adicional en el repo (p. ej. `.vscode/settings.json` apuntando al venv), dímelo y lo agrego.
 
 
