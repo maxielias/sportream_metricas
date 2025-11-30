@@ -2,8 +2,9 @@ import json
 import psycopg2
 import pandas as pd
 import numpy as np
-from typing import Optional
+from typing import Optional, Dict, Any
 import urllib.parse
+import logging
 
 class PostgresDB:
     def __init__(self, host="localhost", port=5432, dbname=None, user=None, password=None, connect_timeout=10):
@@ -142,97 +143,157 @@ import os
 from pathlib import Path
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path('.') / '.env')
 except Exception:
-    pass
+    load_dotenv = None
 
 
-def get_neondb_connection_using_keys(path: str = "neondb_keys.json") -> psycopg2.extensions.connection:
-    """Load Neon DB credentials and connect using explicit PG* keys.
+def get_neondb_connection_using_keys(path: str = "neondb_keys.json", use_json: bool = False, env_path: str = ".env") -> psycopg2.extensions.connection:
+    """Return a raw psycopg2 connection using env/.env or JSON fallback.
 
-    This uses the exact mapping requested: `PGHOST`, `PGDATABASE`, `PGUSER`,
-    `PGPASSWORD`, `PGSSLMODE`. A KeyError is raised if any required key
-    is missing so the caller can fix their `neondb_keys.json`.
+    This is a thin compatibility wrapper that uses `load_db_config()` so
+    all config lookup logic is centralized (prefer `CONNECTION_URL`, then
+    `PG*` env vars, then `neondb_keys.json`).
     """
-    # Prefer a full connection URL if provided (CONNECTION_URL), then
-    # explicit PG* environment variables, then fall back to JSON file.
-    conn_url = os.getenv('CONNECTION_URL') or os.getenv('CONN_URL')
-    if conn_url:
-        # psycopg2 accepts a connection string URL directly
-        return psycopg2.connect(conn_url)
+    cfg = load_db_config(path, use_json=use_json, env_path=env_path)
+    if cfg.get('CONNECTION_URL'):
+        return psycopg2.connect(cfg['CONNECTION_URL'])
 
-    if os.getenv("PGHOST"):
-        keys = {
-            'PGHOST': os.getenv('PGHOST'),
-            'PGDATABASE': os.getenv('PGDATABASE'),
-            'PGUSER': os.getenv('PGUSER'),
-            'PGPASSWORD': os.getenv('PGPASSWORD'),
-            'PGPORT': os.getenv('PGPORT'),
-            'PGSSLMODE': os.getenv('PGSSLMODE'),
-        }
-    else:
-        # last resort: try file directly to provide clearer error
-        with open(path, "r", encoding="utf-8") as f:
-            keys = json.load(f)
-
-    # Use the exact keys as requested
-    try:
-        conn = psycopg2.connect(
-            host=keys.get('PGHOST') or keys.get('host'),
-            database=keys.get('PGDATABASE') or keys.get('database') or keys.get('dbname'),
-            user=keys.get('PGUSER') or keys.get('user'),
-            password=keys.get('PGPASSWORD') or keys.get('password'),
-            sslmode=keys.get('PGSSLMODE') or keys.get('sslmode')
-        )
-    except KeyError as e:
-        raise KeyError(f"Missing required key in {path}: {e}") from e
-    return conn
-
-
-def get_postgresdb_from_neon_keys(path: str = "neondb_keys.json") -> PostgresDB:
-    """Return a configured `PostgresDB` instance built from Neon keys file."""
-    # Prefer environment variables first; fall back to local file.
-    # If a full connection URL is present, parse it and use it.
-    conn_url = os.getenv('CONNECTION_URL') or os.getenv('CONN_URL')
-    if conn_url:
-        # Parse URL to extract components
-        parsed = urllib.parse.urlparse(conn_url)
-        # parsed.path might start with '/dbname'
-        dbname = parsed.path.lstrip('/') if parsed.path else None
-        keys = {
-            'PGHOST': parsed.hostname,
-            'PGPORT': parsed.port,
-            'PGDATABASE': dbname,
-            'PGUSER': parsed.username,
-            'PGPASSWORD': parsed.password,
-            'PGSSLMODE': None,
-        }
-    elif os.getenv("PGHOST"):
-        keys = {
-            'PGHOST': os.getenv('PGHOST'),
-            'PGPORT': os.getenv('PGPORT'),
-            'PGDATABASE': os.getenv('PGDATABASE'),
-            'PGUSER': os.getenv('PGUSER'),
-            'PGPASSWORD': os.getenv('PGPASSWORD'),
-            'PGSSLMODE': os.getenv('PGSSLMODE'),
-        }
-    else:
-        with open(path, "r", encoding="utf-8") as f:
-            keys = json.load(f)
-    # Prefer explicit PG* keys. Fall back to tolerant keys if needed.
-    host = keys.get("PGHOST") or keys.get("host")
-    port = int(keys.get("PGPORT") or keys.get("port") or 5432)
-    dbname = keys.get("PGDATABASE") or keys.get("database") or keys.get("dbname")
-    user = keys.get("PGUSER") or keys.get("user")
-    password = keys.get("PGPASSWORD") or keys.get("password")
-    sslmode = keys.get("PGSSLMODE") or keys.get("sslmode")
-
-    db = PostgresDB(
-        host=host or "localhost",
-        port=port,
-        dbname=dbname,
-        user=user,
-        password=password,
+    # Build kwargs for psycopg2.connect
+    conn_kwargs = dict(
+        host=cfg.get('PGHOST') or cfg.get('host'),
+        database=cfg.get('PGDATABASE') or cfg.get('database') or cfg.get('dbname'),
+        user=cfg.get('PGUSER') or cfg.get('user'),
+        password=cfg.get('PGPASSWORD') or cfg.get('password'),
+        port=cfg.get('PGPORT') or cfg.get('port'),
     )
+    # remove None values
+    conn_kwargs = {k: v for k, v in conn_kwargs.items() if v is not None}
+    return psycopg2.connect(**conn_kwargs)
+
+
+def get_postgresdb_from_neon_keys(path: str = "neondb_keys.json", use_json: bool = False, env_path: str = ".env") -> PostgresDB:
+    """Return a configured `PostgresDB` instance built from env/.json.
+
+    Uses `load_db_config()` to centralize config loading; if a
+    `CONNECTION_URL` exists it will be parsed for components, otherwise
+    PG* env vars or the JSON file are used.
+    """
+    cfg = load_db_config(path, use_json=use_json, env_path=env_path)
+
+    if cfg.get('CONNECTION_URL'):
+        parsed = urllib.parse.urlparse(cfg['CONNECTION_URL'])
+        dbname = parsed.path.lstrip('/') if parsed.path else None
+        host = parsed.hostname
+        port = parsed.port or 5432
+        user = parsed.username
+        password = parsed.password
+        sslmode = None
+    else:
+        host = cfg.get('PGHOST') or cfg.get('host') or 'localhost'
+        port = int(cfg.get('PGPORT') or cfg.get('port') or 5432)
+        dbname = cfg.get('PGDATABASE') or cfg.get('database') or cfg.get('dbname')
+        user = cfg.get('PGUSER') or cfg.get('user')
+        password = cfg.get('PGPASSWORD') or cfg.get('password')
+        sslmode = cfg.get('PGSSLMODE') or cfg.get('sslmode')
+
+    db = PostgresDB(host=host, port=port, dbname=dbname, user=user, password=password)
     db.sslmode = sslmode
     return db
+
+
+def load_db_config(path: str = "neondb_keys.json", use_json: bool = False, env_path: str = ".env") -> Dict[str, Any]:
+    """Load DB configuration.
+
+    Default preference: load variables from `.env` (via python-dotenv) then
+    read `os.environ` (so .env values are respected). If `use_json=True`,
+    the function will prefer the JSON file at `path` instead.
+
+    Returns a dict with possible keys: CONNECTION_URL, PGHOST, PGPORT, PGDATABASE,
+    PGUSER, PGPASSWORD, PGSSLMODE
+    """
+    cfg: Dict[str, Any] = {}
+
+    # If dotenv available, load it to populate os.environ (do not error if missing)
+    if load_dotenv is not None and env_path:
+        try:
+            load_dotenv(Path(env_path))
+        except Exception:
+            # non-fatal; proceed to read environment/JSON
+            pass
+
+    # If caller explicitly requests JSON, try that first
+    if use_json:
+        p = Path(path)
+        if p.exists():
+            try:
+                with p.open('r', encoding='utf-8') as f:
+                    data = json.load(f)
+                return {k: data.get(k) for k in data}
+            except Exception as e:
+                logging.warning('Failed to read %s: %s', path, e)
+                # fall through to environment checks
+
+    # Connection URL first from environment (which may have been populated by dotenv)
+    conn_url = os.getenv('CONNECTION_URL') or os.getenv('CONN_URL')
+    if conn_url:
+        cfg['CONNECTION_URL'] = conn_url
+        return cfg
+
+    # Then explicit PG* env vars
+    if os.getenv('PGHOST'):
+        cfg.update(
+            PGHOST=os.getenv('PGHOST'),
+            PGPORT=os.getenv('PGPORT'),
+            PGDATABASE=os.getenv('PGDATABASE'),
+            PGUSER=os.getenv('PGUSER'),
+            PGPASSWORD=os.getenv('PGPASSWORD'),
+            PGSSLMODE=os.getenv('PGSSLMODE'),
+        )
+        return cfg
+
+    # Final fallback: JSON file if present
+    p = Path(path)
+    if p.exists():
+        try:
+            with p.open('r', encoding='utf-8') as f:
+                data = json.load(f)
+            return {k: data.get(k) for k in data}
+        except Exception as e:
+            logging.warning('Failed to read %s: %s', path, e)
+            return {}
+
+    return {}
+
+
+# if __name__ == "__main__":
+#     # Quick runtime self-test. Does NOT print secrets; prints counts and sample ids.
+#     try:
+#         cfg = load_db_config()
+#         method = 'CONNECTION_URL' if cfg.get('CONNECTION_URL') else 'PG* env or JSON'
+#         print(f"Using config source: {method}")
+
+#         # Try high-level helper first (returns PostgresDB)
+#         db = get_postgresdb_from_neon_keys()
+#         with db:
+#             # count activity-details rows
+#             try:
+#                 cnt = db.execute("SELECT count(*) FROM webhooks WHERE type = 'activity-details'", fetchone=True)
+#             except Exception:
+#                 # If the table or privileges differ, surface a friendly message
+#                 print("Could not run COUNT query against table 'webhooks'. Check schema and permissions.")
+#                 raise
+#             print("activity-details rows:", cnt[0] if cnt else 0)
+
+#             # fetch last 3 ids
+#             try:
+#                 rows = db.execute("SELECT id, created_at FROM webhooks WHERE type = 'activity-details' ORDER BY created_at DESC LIMIT 3", fetchall=True)
+#                 if rows:
+#                     print("Last activity ids:")
+#                     for r in rows:
+#                         print(" -", r[0], "@", r[1])
+#                 else:
+#                     print("No recent activity-details rows found.")
+#             except Exception:
+#                 print("Could not fetch recent rows; query failed.")
+#     except Exception as e:
+#         print("Self-test failed:", str(e))
