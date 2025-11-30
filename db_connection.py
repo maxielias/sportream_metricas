@@ -265,35 +265,35 @@ def load_db_config(path: str = "neondb_keys.json", use_json: bool = False, env_p
     return {}
 
 
-# if __name__ == "__main__":
-#     # Quick runtime self-test. Does NOT print secrets; prints counts and sample ids.
-#     try:
-#         cfg = load_db_config()
-#         method = 'CONNECTION_URL' if cfg.get('CONNECTION_URL') else 'PG* env or JSON'
-#         print(f"Using config source: {method}")
+if __name__ == "__main__":
+    # Quick runtime self-test. Does NOT print secrets; prints counts and sample ids.
+    try:
+        cfg = load_db_config()
+        method = 'CONNECTION_URL' if cfg.get('CONNECTION_URL') else 'PG* env or JSON'
+        print(f"Using config source: {method}")
 
-#         # Try high-level helper first (returns PostgresDB)
-#         db = get_postgresdb_from_neon_keys()
-#         with db:
-#             # count activity-details rows
-#             try:
-#                 cnt = db.execute("SELECT count(*) FROM webhooks WHERE type = 'activity-details'", fetchone=True)
-#             except Exception:
-#                 # If the table or privileges differ, surface a friendly message
-#                 print("Could not run COUNT query against table 'webhooks'. Check schema and permissions.")
-#                 raise
-#             print("activity-details rows:", cnt[0] if cnt else 0)
+        # Try high-level helper first (returns PostgresDB)
+        db = get_postgresdb_from_neon_keys()
+        with db:
+            # count activity-details rows
+            try:
+                cnt = db.execute("SELECT count(*) FROM webhooks WHERE type = 'activity-details'", fetchone=True)
+            except Exception:
+                # If the table or privileges differ, surface a friendly message
+                print("Could not run COUNT query against table 'webhooks'. Check schema and permissions.")
+                raise
+            print("activity-details rows:", cnt[0] if cnt else 0)
 
-#             # fetch last 3 ids
-#             try:
-#                 rows = db.execute("SELECT id, created_at FROM webhooks WHERE type = 'activity-details' ORDER BY created_at DESC LIMIT 3", fetchall=True)
-#                 if rows:
-#                     print("Last activity ids:")
-#                     for r in rows:
-#                         print(" -", r[0], "@", r[1])
-#                 else:
-#                     print("No recent activity-details rows found.")
-#             except Exception:
-#                 print("Could not fetch recent rows; query failed.")
-#     except Exception as e:
-#         print("Self-test failed:", str(e))
+            # fetch last 3 ids
+            try:
+                rows = db.execute("SELECT id, created_at FROM webhooks WHERE type = 'activity-details' ORDER BY created_at DESC LIMIT 3", fetchall=True)
+                if rows:
+                    print("Last activity ids:")
+                    for r in rows:
+                        print(" -", r[0], "@", r[1])
+                else:
+                    print("No recent activity-details rows found.")
+            except Exception:
+                print("Could not fetch recent rows; query failed.")
+    except Exception as e:
+        print("Self-test failed:", str(e))
