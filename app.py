@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
+from metrics import minutes_to_pace_str
 import pydeck as pdk
 
 from activity_details import fetch_activity_details_df, fetch_activity_details, ActivityDetails
@@ -165,11 +166,7 @@ def main():
     st.subheader("Actividad seleccionada")
     col1, col2 = st.columns([2, 3])
     with col1:
-        st.write("**ID**:", rec.get("id"))
-        st.write("**Created at**:", rec.get("created_at"))
-        st.write("**Type**:", rec.get("type"))
-    with col2:
-        # show a compact summary of the data payload (do not render full JSON)
+        # Mostrar métricas resumidas desde activityDetails -> summary
         data_val = rec.get("data")
         if isinstance(data_val, str):
             try:
@@ -177,40 +174,68 @@ def main():
             except Exception:
                 pass
 
-        st.write("**Data — Resumen (no muestra JSON completo)**")
+        detail = data_val
+        if isinstance(data_val, dict) and isinstance(data_val.get('activityDetails'), list) and data_val.get('activityDetails'):
+            detail = data_val.get('activityDetails')[0]
 
-        def _summarize_payload(obj):
-            # Returns a small DataFrame with top-level key, type and length (if applicable)
-            if isinstance(obj, dict):
-                rows = []
-                for k, v in obj.items():
-                    t = type(v).__name__
-                    try:
-                        l = len(v) if (hasattr(v, '__len__') and not isinstance(v, (str, bytes))) else ''
-                    except Exception:
-                        l = ''
-                    rows.append({'key': k, 'type': t, 'len': l})
-                if rows:
-                    return pd.DataFrame(rows)
-                return None
-            return None
+        # summary puede estar directamente en el detail o bajo la clave 'summary'
+        summary = {}
+        if isinstance(detail, dict):
+            summary = detail.get('summary') or detail
 
-        summary_df = _summarize_payload(data_val)
-        if summary_df is not None and not summary_df.empty:
-            st.table(summary_df)
+        metrics_keys = [
+            'activityName', 'durationInSeconds', 'startTimeInSeconds',
+            'activityType',
+            'averageHeartRateInBeatsPerMinute', 'averageRunCadenceInStepsPerMinute',
+            'averageSpeedInMetersPerSecond', 'averagePaceInMinutesPerKilometer',
+            'activeKilocalories', 'distanceInMeters',
+            'maxHeartRateInBeatsPerMinute', 'maxPaceInMinutesPerKilometer',
+            'maxRunCadenceInStepsPerMinute', 'maxSpeedInMetersPerSecond',
+            'totalElevationGainInMeters', 'totalElevationLossInMeters'
+        ]
+
+        rows = []
+        for k in metrics_keys:
+            val = None
+            if isinstance(summary, dict):
+                val = summary.get(k)
+            # formatting helpers
+            disp = '' if val is None else val
+            if k == 'durationInSeconds' and val is not None:
+                try:
+                    disp = str(pd.to_timedelta(float(val), unit='s'))
+                except Exception:
+                    disp = val
+            if k == 'startTimeInSeconds' and val is not None:
+                try:
+                    disp = pd.to_datetime(int(val), unit='s')
+                except Exception:
+                    disp = val
+            # format pace fields (minutes per km) into mm:ss
+            if k in ('averagePaceInMinutesPerKilometer', 'maxPaceInMinutesPerKilometer') and val is not None:
+                try:
+                    disp = minutes_to_pace_str(float(val))
+                except Exception:
+                    disp = val
+            # format distance (meters -> km)
+            if k == 'distanceInMeters' and val is not None:
+                try:
+                    disp = f"{float(val)/1000.0:.2f} km"
+                except Exception:
+                    disp = val
+            # format calories
+            if k == 'activeKilocalories' and val is not None:
+                try:
+                    disp = f"{float(val):.0f} kcal"
+                except Exception:
+                    disp = val
+            rows.append({'metric': k, 'value': disp})
+
+        if rows:
+            st.table(pd.DataFrame(rows))
         else:
-            # If payload isn't a dict or empty, show a brief scalar preview
-            if data_val is None:
-                st.write("(vacío)")
-            else:
-                st.write(f"Tipo: {type(data_val).__name__} — vista previa corta:")
-                # show the first ~300 chars for strings or repr for other scalars
-                s = data_val
-                if isinstance(s, (dict, list)):
-                    txt = str(s)[:300]
-                else:
-                    txt = repr(s)[:300]
-                st.text(txt)
+            st.write("(sin resumen disponible)")
+    # removed detailed raw payload summary per user request
 
     # build ActivityDetails object for selected
     activity_obj = items[sel_idx] if len(items) > sel_idx else None
@@ -323,7 +348,7 @@ def main():
                     for i in range(1, rows + 1):
                         fig.update_yaxes(row=i, col=1, gridcolor='#f2f4f7', zerolinecolor='#e6eef8')
 
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, width='stretch')
 
             # map if coordinates available
             if "latitudeInDegree" in samples.columns and "longitudeInDegree" in samples.columns:
