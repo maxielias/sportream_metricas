@@ -41,5 +41,8 @@ neondb_keys.json.example
 # examples files
 examples/
 
-connect_example.py
-secrets_loader.py
+# notebooks folder
+notebooks/
+# local test scripts
+tests/
+scripts/
